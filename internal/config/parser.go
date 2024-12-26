@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/docker/docker/api/types/versions"
 	"github.com/malletgaetan/dockermon/internal/cmd"
 )
 
@@ -20,6 +22,17 @@ const (
 	arg_container = '\''
 	arg_delimiter = ','
 )
+
+// TODO: fix
+func keys[T any](m map[string]T) []string {
+	arr := make([]string, len(m))
+	i := 0
+	for k, _ := range m {
+		arr[i] = k
+		i += 1
+	}
+	return arr
+}
 
 func parseGlobalSettingLine(config *Config, line string, mid int) error {
 	item := line[:mid]
@@ -44,7 +57,7 @@ func parseGlobalSettingLine(config *Config, line string, mid int) error {
 	return nil
 }
 
-func parseHandlerLine(config *Config, line string) error {
+func parseHandlerLine(config *Config, hinter map[string][]string, line string) error {
 	// parse event type
 	typ_end := strings.Index(line, delimiter)
 	if typ_end == -1 {
@@ -52,7 +65,11 @@ func parseHandlerLine(config *Config, line string) error {
 	}
 	typ := line[:typ_end]
 	if typ == wildcard {
-		return &ConfigError{message: "type can't be wildcare, use wildcare only for actions"}
+		return &ConfigError{message: "type can't be wildcare, use wildcare only for actions", err: ErrUnimplemented}
+	}
+	possibleActions, ok := hinter[typ]
+	if !ok {
+		return &ConfigError{message: fmt.Sprintf("event of type `%v` does not exist on your current docker version, use one of: %v", typ, keys(hinter)), err: ErrUnimplemented}
 	}
 
 	// parse event action
@@ -62,6 +79,9 @@ func parseHandlerLine(config *Config, line string) error {
 	}
 	action_end = action_end + typ_end + 2
 	action := line[typ_end+2 : action_end]
+	if action != wildcard && !slices.Contains(possibleActions, action) {
+		return &ConfigError{message: fmt.Sprintf("action `%v` on type `%v` does not exist on your current docker version, use one of: %v", action, typ, possibleActions), err: ErrUnimplemented}
+	}
 
 	// parse cmd timeout
 	timeout_end := strings.Index(line[action_end+2:], delimiter)
@@ -84,16 +104,16 @@ func parseHandlerLine(config *Config, line string) error {
 	j := timeout_end + 2
 	args := []string{}
 	for {
-		if line[j] != arg_container {
+		if j >= len(line) || line[j] != arg_container {
 			return &ConfigError{message: "no start delimiter found for arg", err: ErrMalformed}
 		}
 		j++
 		arg := ""
 		for {
 			if j >= len(line) {
-				return &ConfigError{message: "no end start delimiter found in arg: '" + arg + "'", err: ErrMalformed}
+				return &ConfigError{message: "no end start delimiter found in arg: `" + arg + "`", err: ErrMalformed}
 			}
-			if line[j] == '\\' {
+			if line[j] == '\\' && j+1 < len(line) {
 				arg += string(line[j+1])
 				j += 2
 				continue
@@ -110,7 +130,7 @@ func parseHandlerLine(config *Config, line string) error {
 			break
 		}
 		if line[j] != arg_delimiter {
-			return &ConfigError{message: "expected delimiter after arg: '" + arg + "'", err: ErrMalformed}
+			return &ConfigError{message: "expected delimiter after arg: `" + arg + "`", err: ErrMalformed}
 		}
 		j++
 	}
@@ -124,7 +144,7 @@ func parseHandlerLine(config *Config, line string) error {
 	return nil
 }
 
-func parseLine(config *Config, line string) error {
+func parseLine(config *Config, hinter map[string][]string, line string) error {
 	if len(line) == 0 || line[0] == comment {
 		return nil
 	}
@@ -133,23 +153,27 @@ func parseLine(config *Config, line string) error {
 	if i != -1 {
 		return parseGlobalSettingLine(config, line, i)
 	}
-	return parseHandlerLine(config, line)
+	return parseHandlerLine(config, hinter, line)
 }
 
-func ParseConfig(filepath string) (*Config, error) {
-	config := &Config{
-		map_: make(map[string]map[string]*cmd.Cmd),
+func ParseConfig(scanner *bufio.Scanner, version string) (*Config, error) {
+	if versions.GreaterThanOrEqualTo(MinAPIVersion, version) {
+		return nil, &ConfigError{message: "minimal docker API version supported is " + MinAPIVersion + " current is " + version}
 	}
-	file, err := os.Open(filepath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	hinter, ok := configVersion[version]
+	if !ok {
+		return nil, &ConfigError{message: "failed to found commands hinter for Docker API version " + version + ", this is a bug, please report."}
+	}
+
+	config := &Config{
+		map_:    make(map[string]map[string]*cmd.Cmd),
+		version: version,
+	}
+
 	errHappened := false
 	for scanner.Scan() {
-		err := parseLine(config, scanner.Text())
+		err := parseLine(config, hinter, scanner.Text())
 		if err != nil {
 			fmt.Println("Error found in line [", scanner.Text(), "]:")
 			fmt.Println("---- ", err.Error())
@@ -160,7 +184,19 @@ func ParseConfig(filepath string) (*Config, error) {
 		return nil, err
 	}
 	if errHappened {
-		return config, ErrMalformed
+		return nil, ErrMalformed
 	}
 	return config, nil
+}
+
+func ParseConfigFile(filepath string, version string) (*Config, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	return ParseConfig(scanner, version)
 }

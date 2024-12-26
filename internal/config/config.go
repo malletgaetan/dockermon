@@ -5,8 +5,13 @@ import (
 	"github.com/malletgaetan/dockermon/internal/cmd"
 )
 
+const (
+	MinAPIVersion = "1.41" // support for debian stable branch, could go lower if needed
+)
+
 type Config struct {
 	timeout uint
+	version string
 	map_    map[string]map[string]*cmd.Cmd
 }
 

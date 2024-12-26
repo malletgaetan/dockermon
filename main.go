@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 	"github.com/malletgaetan/dockermon/internal/config"
 	"github.com/malletgaetan/dockermon/internal/logger"
@@ -21,7 +20,6 @@ import (
 var (
 	configFilePath = flag.String("c", "", "configuration file path")
 	logsJSON       = flag.Bool("f", false, "logs in JSON")
-	minAPIVersion  = "1.41" // support for debian stable branch, could go lower if needed
 )
 
 func main() {
@@ -39,21 +37,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	conf, err := config.ParseConfig(*configFilePath)
-	if err != nil {
-		fmt.Println("Error: failed to parse configuration file: ", err)
-		os.Exit(1)
-	}
-
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
 	)
+	if err != nil {
+		fmt.Println("Error: failed to create docker client: ", err)
+		os.Exit(1)
+	}
 
-	curAPIVersion := cli.ClientVersion()
-
-	if versions.GreaterThanOrEqualTo(minAPIVersion, curAPIVersion) {
-		fmt.Println("Error: minimal docker API version supported is ", minAPIVersion, " current is ", curAPIVersion)
+	conf, err := config.ParseConfigFile(*configFilePath, cli.ClientVersion())
+	if err != nil {
+		fmt.Println("Error: failed to parse configuration file: ", err)
 		os.Exit(1)
 	}
 
