@@ -24,7 +24,7 @@ var (
 )
 
 func main() {
-	runtime.GOMAXPROCS(1) // make it single core
+	runtime.GOMAXPROCS(1)
 	var wg sync.WaitGroup
 	var loggerConfig logger.Config
 
