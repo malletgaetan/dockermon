@@ -157,8 +157,7 @@ func (p *parser) parseHandlerLine(line string) error {
 	}
 
 	p.config.SetCmd(typ, action, &cmd.Cmd{
-		Name:    args[0],
-		Args:    args[1:],
+		Args:    args,
 		Timeout: uint(timeoutNb),
 	})
 
@@ -170,6 +169,8 @@ func (p *parser) parseLine() error {
 	if len(line) == 0 || line[0] == comment {
 		return nil
 	}
+
+	p.pos.col = 0
 
 	i := strings.Index(line, globalDelimiter)
 	if i != -1 {
@@ -184,7 +185,7 @@ func ParseConfig(scanner *bufio.Scanner, hints map[string][]string) (*Config, er
 	}
 
 	parser := &parser{
-		pos:     Position{row: 0, col: 0},
+		pos:     Position{row: 1, col: 1},
 		config:  config,
 		scanner: scanner,
 		hints:   hints,

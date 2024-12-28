@@ -9,7 +9,7 @@ var Log *slog.Logger
 
 type Config struct {
 	Level slog.Level
-	JSON  bool
+	// JSON  bool
 }
 
 func Initialize(cfg Config) {
@@ -18,11 +18,7 @@ func Initialize(cfg Config) {
 	}
 
 	var handler slog.Handler
-	if cfg.JSON {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
+	handler = slog.NewTextHandler(os.Stdout, opts)
 
 	Log = slog.New(handler)
 	slog.SetDefault(Log)

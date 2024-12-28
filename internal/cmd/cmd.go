@@ -13,7 +13,6 @@ import (
 )
 
 type Cmd struct {
-	Name    string
 	Args    []string
 	Timeout uint
 }
@@ -27,9 +26,9 @@ func (c *Cmd) Execute(wg *sync.WaitGroup, msg events.Message) {
 	if c.Timeout != 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(c.Timeout))
 		defer cancel()
-		cmd = exec.CommandContext(ctx, c.Name, c.Args...)
+		cmd = exec.CommandContext(ctx, c.Args[0], c.Args[1:]...)
 	} else {
-		cmd = exec.Command(c.Name, c.Args...)
+		cmd = exec.Command(c.Args[0], c.Args[1:]...)
 	}
 
 	stdin, err := cmd.StdinPipe()

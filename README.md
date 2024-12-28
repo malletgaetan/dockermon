@@ -4,8 +4,10 @@ A lightweight, flexible tool for attaching custom hooks to Docker events. Monito
 
 ## Features
 
+- Runtime errors on bad configured event type or action depending on your docker version
 - Monitor Docker container lifecycle events
 - Execute custom commands on specific events
+- Event data through stdin
 - Configurable timeouts per command or globally
 - Support for wildcard event matching
 - Simple configuration file format

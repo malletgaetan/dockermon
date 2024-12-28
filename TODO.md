@@ -7,7 +7,8 @@
 - [x] Add tests
 - [x] Better error reporting
 - [x] Build docker event filter
+- [x] Resilience on events listening fail
 - [ ] One file installer
 - [ ] Add more tests
-- [ ] Dockermon should never miss or double handle an event, even in crash and restart condition
+- [ ] Event Type wildcard
 - [ ] Windows compatibility

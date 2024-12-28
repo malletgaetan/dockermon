@@ -8,7 +8,7 @@ import (
 
 var (
 	ErrUnsupportedVersion = errors.New("unsupported docker version")
-	ParserBadConfig       = errors.New("bad config")
+	ErrUnimplemented      = errors.New("unimplemented command type")
 )
 
 var (

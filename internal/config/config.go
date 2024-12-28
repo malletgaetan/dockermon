@@ -2,6 +2,9 @@ package config
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/versions"
@@ -46,8 +49,26 @@ func (c *Config) Filters() filters.Args {
 	return filterArgs
 }
 
-// TODO
 func (c *Config) Dump() {
+	fmt.Println("Internal configuration dump:")
+	for eventType, actionMap := range c.map_ {
+		actions := keys(actionMap)
+		sort.Strings(actions)
+		for _, action := range actions {
+			cmd := actionMap[action]
+			timeout := ""
+			var t uint = 0
+			if cmd.Timeout != 0 {
+				t = cmd.Timeout
+			} else if cmd.Timeout != 0 {
+				t = cmd.Timeout
+			}
+			if t != 0 {
+				timeout += strconv.FormatUint(uint64(t), 10)
+			}
+			fmt.Printf("%s%s%s%s%s%s%s\n", eventType, delimiter, action, delimiter, timeout, delimiter, strings.Join(cmd.Args, ","))
+		}
+	}
 	return
 }
 
@@ -58,24 +79,22 @@ func (c *Config) SetCmd(typ string, action string, comd *cmd.Cmd) {
 	c.map_[typ][action] = comd
 }
 
-func (c *Config) GetCmd(typ string, action string) *cmd.Cmd {
+func (c *Config) GetCmd(typ string, action string) (*cmd.Cmd, error) {
 	var actions map[string]*cmd.Cmd
 	var cmd *cmd.Cmd
 	actions, ok := c.map_[typ]
 	if !ok {
 		actions, ok = c.map_[wildcard]
 		if !ok {
-			c.Dump()
-			panic(fmt.Sprintf(errorFmt, debugEventTypeName, typ))
+			return nil, &Error{context: fmt.Sprintf(errorFmt, debugEventTypeName, typ), err: ErrUnimplemented}
 		}
 	}
 	cmd, ok = actions[action]
 	if !ok {
 		cmd, ok = actions[wildcard]
 		if !ok {
-			c.Dump()
-			panic(fmt.Sprintf(errorFmt, debugEventActionName, action))
+			return nil, &Error{context: fmt.Sprintf(errorFmt, debugEventActionName, typ), err: ErrUnimplemented}
 		}
 	}
-	return cmd
+	return cmd, nil
 }

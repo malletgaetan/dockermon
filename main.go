@@ -3,14 +3,18 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -20,16 +24,71 @@ import (
 
 var (
 	configFilePath = flag.String("c", "", "configuration file path")
-	logsJSON       = flag.Bool("f", false, "logs in JSON")
+	dumpConfig     = flag.Bool("d", false, "dump parsed configuration")
 )
+
+func exponentialBackoff(fn func() error, maxRetries int) error {
+	var err error
+	i := 0
+
+	for {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		if i == maxRetries {
+			break
+		}
+		i++
+		logger.Log.Error("failed to retrieve docker events", "err", err, "try", i)
+
+		backoffDuration := time.Duration(math.Pow(2, float64(i))) * 200 * time.Millisecond
+		time.Sleep(backoffDuration)
+	}
+
+	return err
+}
+
+func handleEvents(client *client.Client, conf *config.Config) error {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	msgs, errs := client.Events(ctx, types.EventsOptions{
+		Filters: conf.Filters(),
+	})
+
+	for {
+		select {
+		case err := <-errs:
+			if err != nil {
+				if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+					return nil
+				}
+				return err
+			}
+		case msg := <-msgs:
+			cmd, err := conf.GetCmd(string(msg.Type), string(msg.Action))
+			if err != nil {
+				logger.Log.Error("failed to handle event", "type", string(msg.Type), "action", string(msg.Action), "err", err)
+				continue
+			}
+			logger.Log.Info("handling event", "type", string(msg.Type), "action", string(msg.Action))
+			wg.Add(1)
+			go cmd.Execute(&wg, msg)
+		}
+	}
+
+	return nil
+}
 
 func main() {
 	runtime.GOMAXPROCS(1)
-	var wg sync.WaitGroup
 	var loggerConfig logger.Config
 
 	flag.Parse()
-	loggerConfig.JSON = *logsJSON
 	loggerConfig.Level = slog.LevelInfo
 	logger.Initialize(loggerConfig)
 
@@ -69,30 +128,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-
-	msgs, errs := cli.Events(ctx, types.EventsOptions{
-		Filters: conf.Filters(),
-	})
-
-	for {
-		select {
-		case err := <-errs:
-			if err != nil {
-				logger.Log.Error("docker events subscribe failed", "err", err)
-				stop()
-				goto out
-			}
-		case msg := <-msgs:
-			cmd := conf.GetCmd(string(msg.Type), string(msg.Action))
-			logger.Log.Info("handling event", "type", string(msg.Type), "action", string(msg.Action))
-			wg.Add(1)
-			go cmd.Execute(&wg, msg)
-		}
+	if *dumpConfig {
+		conf.Dump()
 	}
-out:
 
-	wg.Wait()
+	err = exponentialBackoff(func() error { return handleEvents(cli, conf) }, 6)
+	if err != nil {
+		logger.Log.Error("failed to listen to docker events", "err", err)
+	}
 
-	logger.Log.Info("graceful shutdown complete")
+	logger.Log.Info("Shutdown complete")
 }

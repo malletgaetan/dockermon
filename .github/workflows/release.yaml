@@ -18,7 +18,7 @@ jobs:
 
       - name: Build for Linux (amd64)
         run: |
-          GOOS=linux GOARCH=amd64 go build ./cmd/dockermon -o dockermon-linux-amd64
+          GOOS=linux GOARCH=amd64 go build -o dockermon-linux-amd64
 
     #   - name: Build for macOS (amd64)
     #     run: |
