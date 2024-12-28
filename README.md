@@ -4,35 +4,38 @@ A lightweight, flexible tool for attaching custom hooks to Docker events. Monito
 
 ## Features
 
-- Runtime errors on bad configured event type or action depending on your docker version
-- Monitor Docker container lifecycle events
-- Execute custom commands on specific events
-- Event data through stdin
-- Configurable timeouts per command or globally
+- Real-time monitoring of Docker container lifecycle events
+- Execute custom commands on specific events with event data passed through stdin
+- Robust error handling for misconfigured event types or actions
+- Configurable timeouts (both global and per-command)
 - Support for wildcard event matching
-- Simple configuration file format
+- Simple, human-readable configuration file format
+- Validation against Docker API version compatibility
 
-## Usage
+## Quick Start
 
-Build with:
+### Installation
 
+Build from source:
 ```bash
 make
 ```
 
-Or download pre-built binaries with:
-
+Or download pre-built binaries (coming soon):
 ```bash
 // TODO
 ```
 
-Start Dockermon by providing your configuration file:
+### Basic Usage
 
+Start Dockermon by providing your configuration file:
 ```bash
 dockermon -c <config_filepath>
 ```
 
-## Configuration
+## Configuration Guide
+
+### File Format
 
 Dockermon uses a simple text configuration file format:
 
@@ -47,10 +50,47 @@ timeout=60
 # command - Command to execute with arguments
 ```
 
-Unlike docker events cli, dockermon handle invalid event types or actions:
+### Event Data
+
+Commands receive event data through stdin in JSON format. Example event data:
+
+```json
+{
+  "Type": "container",
+  "Action": "start",
+  "Actor": {
+    "ID": "abc123...",
+    "Attributes": {
+      "name": "my-container",
+      "image": "nginx:latest"
+    }
+  },
+  "time": 1234567890
+}
+```
+
+### Example Configurations
 
 ```bash
-gm@tower:~/code/dockermon$ ./dockermon -c configs/corpus.conf 
+# Send Slack notification on container start (5s timeout)
+container::start::5::'/usr/bin/slack_notify','info'
+
+# Execute command for all container events
+container::*::5::'/usr/bin/log_event'
+
+# Special handler for container die events
+container::die::5::'/usr/bin/alert','error'
+
+# Network events handler with no timeout
+network::*::::'/usr/bin/network_monitor'
+```
+
+## Error Handling
+
+Dockermon provides clear error messages for invalid configurations. For example:
+
+```bash
+dockermon -c configs/corpus.conf
 ```
 
 Will yield:
@@ -67,22 +107,6 @@ Parsing Error: invalid type `storage`, use one of: [network service node secret 
       |^^^^^^^
 ```
 
-### Example Configuration
-
-```bash
-# Send Slack notification on container start (5s timeout)
-container::start::5::'/usr/bin/slack_notify','info'
-
-# Execute command for all container events
-container::*::5::'/usr/bin/slack_notify','info'
-
-# Special handler for container die events
-container::die::5::'/usr/bin/slack_notify','error'
-
-# Network events handler with no timeout
-network::*::::'/usr/bin/stuff'
-```
-
 ## Supported Events
 
-See [Docker API](https://docs.docker.com/reference/api/engine/version/v1.47/#tag/System/operation/SystemEvents)
+Dockermon supports all event types and actions from the Docker Engine API. For a complete list, refer to the [Docker API documentation](https://docs.docker.com/reference/api/engine/version/v1.47/#tag/System/operation/SystemEvents).
