@@ -25,6 +25,10 @@ const (
 	argDelimiter = ','
 )
 
+var (
+	globalIdentifiers = []string{timeoutIdentifier}
+)
+
 type Position struct {
 	row int
 	col int
@@ -53,17 +57,23 @@ func (p *parser) parseGlobalSettingLine(line string, mid int) error {
 	value := line[mid+1:]
 
 	if item != timeoutIdentifier {
-		return &Error{
-			context: "unknown global setting: '" + item + "'",
+		return &ParserError{
+			context: fmt.Sprintf("unknown global setting `%s`, expected one of: %v", value, globalIdentifiers),
 			err:     ErrBadValue,
+			pos:     p.pos,
+			length:  mid,
 		}
 	}
 
+	p.pos.col = mid + 1
+
 	timeoutNb, err := strconv.ParseUint(value, 10, 16)
 	if err != nil {
-		return &Error{
-			context: "invalid timeout value: '" + value + "'",
+		return &ParserError{
+			context: err.Error(),
 			err:     err,
+			pos:     p.pos,
+			length:  len(line) - p.pos.col,
 		}
 	}
 
