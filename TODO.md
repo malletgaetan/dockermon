@@ -8,7 +8,7 @@
 - [x] Better error reporting
 - [x] Build docker event filter
 - [x] Resilience on events listening fail
-- [ ] One file installer
 - [ ] Add more tests
+- [ ] One file installer
 - [ ] Event Type wildcard
 - [ ] Windows compatibility

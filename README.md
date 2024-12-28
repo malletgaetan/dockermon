@@ -14,6 +14,18 @@ A lightweight, flexible tool for attaching custom hooks to Docker events. Monito
 
 ## Usage
 
+Build with:
+
+```bash
+make
+```
+
+Or download pre-built binaries with:
+
+```bash
+// TODO
+```
+
 Start Dockermon by providing your configuration file:
 
 ```bash
@@ -33,6 +45,26 @@ timeout=60
 # action  - Event action or * for wildcard
 # timeout - Command timeout in seconds (optional)
 # command - Command to execute with arguments
+```
+
+Unlike docker events cli, dockermon handle invalid event types or actions:
+
+```bash
+gm@tower:~/code/dockermon$ ./dockermon -c configs/corpus.conf 
+```
+
+Will yield:
+```
+Error: failed to parse configuration
+Parsing Error: invalid action `starts` on type `container`, use one of: [attach commit copy create destroy detach die exec_create exec_detach exec_start exec_die export health_status kill oom pause rename resize restart start stop top unpause update prune]
+    6 |container::starts::5::'/usr/bin/notify'
+      |           ^^^^^^                      
+Parsing Error: invalid action `die` on type `network`, use one of: [create connect disconnect destroy update remove prune]
+    8 |network::die::0::'/usr/bin/log'
+      |         ^^^                   
+Parsing Error: invalid type `storage`, use one of: [network service node secret config container image volume]
+    9 |storage::*::::'/usr/bin/storage'
+      |^^^^^^^
 ```
 
 ### Example Configuration
