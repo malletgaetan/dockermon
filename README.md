@@ -49,7 +49,6 @@ container::die::5::'/usr/bin/slack_notify','error'
 network::*::::'/usr/bin/stuff'
 ```
 
-## Event Types
+## Supported Events
 
-- `container` - Container lifecycle events (start, die, etc.)
-- `network` - Network-related events
+See [Docker API](https://docs.docker.com/reference/api/engine/version/v1.47/#tag/System/operation/SystemEvents)
