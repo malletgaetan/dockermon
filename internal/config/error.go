@@ -22,7 +22,6 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return e.context
 	return e.err.Error() + ": " + e.context
 }
 

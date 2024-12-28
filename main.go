@@ -80,8 +80,6 @@ func handleEvents(client *client.Client, conf *config.Config) error {
 			go cmd.Execute(&wg, msg)
 		}
 	}
-
-	return nil
 }
 
 func main() {

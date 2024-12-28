@@ -195,7 +195,7 @@ func ParseConfig(scanner *bufio.Scanner, hints map[string][]string) (*Config, er
 	}
 
 	parser := &parser{
-		pos:     Position{row: 1, col: 1},
+		pos:     Position{row: 1},
 		config:  config,
 		scanner: scanner,
 		hints:   hints,
