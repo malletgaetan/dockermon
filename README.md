@@ -1,33 +1,55 @@
 # Dockermon
 
-Dockermon is a lightweight, flexible tool that lets you easily attach custom hooks to Docker events. Monitor your containers and trigger actions based on container lifecycle events with minimal setup.
+A lightweight, flexible tool for attaching custom hooks to Docker events. Monitor your containers and trigger actions based on container lifecycle events with minimal setup.
 
+## Features
 
-## Getting Started
+- Monitor Docker container lifecycle events
+- Execute custom commands on specific events
+- Configurable timeouts per command or globally
+- Support for wildcard event matching
+- Simple configuration file format
 
-Install
-```bash
-TODO
-```
+## Usage
 
-Start
+Start Dockermon by providing your configuration file:
+
 ```bash
 dockermon -c <config_filepath>
 ```
 
-## Configuration format
+## Configuration
 
-```conf
-# this is a comment
-# global timeout, if not set per command, this timeout will be used, default non timeout
+Dockermon uses a simple text configuration file format:
+
+```bash
+# Global timeout in seconds (optional, default: no timeout)
 timeout=60
 
-# type::action::timeout::command
+# Format: type::action::timeout::command
+# type    - Event type (container, network, etc.)
+# action  - Event action or * for wildcard
+# timeout - Command timeout in seconds (optional)
+# command - Command to execute with arguments
+```
+
+### Example Configuration
+
+```bash
+# Send Slack notification on container start (5s timeout)
 container::start::5::'/usr/bin/slack_notify','info'
-# action can be a wildcard to match every possible actions
+
+# Execute command for all container events
 container::*::5::'/usr/bin/slack_notify','info'
-# create a handler that will be executed specificaly for this type and action, wildcard will not be invoked
+
+# Special handler for container die events
 container::die::5::'/usr/bin/slack_notify','error'
-# timeout can be unset
+
+# Network events handler with no timeout
 network::*::::'/usr/bin/stuff'
 ```
+
+## Event Types
+
+- `container` - Container lifecycle events (start, die, etc.)
+- `network` - Network-related events
