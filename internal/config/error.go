@@ -2,23 +2,60 @@ package config
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 )
 
 var (
-	ErrUnimplemented = errors.New("not implemented error")
-
-	ErrMalformed = errors.New("malformation error")
+	ErrUnsupportedVersion = errors.New("unsupported docker version")
+	ParserBadConfig       = errors.New("bad config")
 )
 
-type ConfigError struct {
+var (
+	ErrBadValue  = errors.New("bad syntax")
+	ErrBadSyntax = errors.New("bad value")
+)
+
+type Error struct {
 	err     error
-	message string
+	context string
 }
 
-func (e *ConfigError) Error() string {
-	return e.err.Error() + ": " + e.message
+func (e *Error) Error() string {
+	return e.context
+	return e.err.Error() + ": " + e.context
 }
 
-func (e *ConfigError) Unwrap() error {
+func (e *Error) Unwrap() error {
+	return e.err
+}
+
+type ParserError struct {
+	err     error
+	line    string
+	context string
+	pos     Position
+	length  int `default:"1"`
+}
+
+func (e *ParserError) Error() string {
+	str := "Parsing Error: " + e.context + "\n"
+	deli := " |"
+	pre := strings.Repeat(" ", 4) + strconv.Itoa(e.pos.row)
+	str += pre + deli + e.line + "\n"
+	str += strings.Repeat(" ", len(pre)) + deli
+	start := e.pos.col
+	stop := e.pos.col + e.length
+	if start > 0 {
+		str += strings.Repeat(" ", start)
+	}
+	str += strings.Repeat("^", e.length)
+	if stop < len(e.line) {
+		str += strings.Repeat(" ", len(e.line)-stop)
+	}
+	return str
+}
+
+func (e *ParserError) Unwrap() error {
 	return e.err
 }

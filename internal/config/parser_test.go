@@ -13,13 +13,12 @@ func FuzzParseConfig(f *testing.F) {
 		f.Fatal(err)
 	}
 
-	for version, _ := range configVersion {
-		f.Add(corpusBytes, version)
-	}
+	f.Add(corpusBytes)
 
-	f.Fuzz(func(t *testing.T, data []byte, version string) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		hints, _ := configVersion["1.47"]
 		scanner := bufio.NewScanner(bytes.NewReader(data))
-		config, err := ParseConfig(scanner, version)
+		config, err := ParseConfig(scanner, hints)
 
 		if err != nil {
 			if config != nil {
@@ -30,9 +29,6 @@ func FuzzParseConfig(f *testing.F) {
 
 		if config == nil {
 			t.Error("got nil config without error")
-		}
-		if config.version != version {
-			t.Errorf("version mismatch: got %s, expected %s", config.version, version)
 		}
 	})
 }

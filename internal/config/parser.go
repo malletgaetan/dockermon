@@ -2,26 +2,40 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types/versions"
 	"github.com/malletgaetan/dockermon/internal/cmd"
 )
 
 const (
-	wildcard           = "*"
-	delimiter          = "::"
-	global_delimiter   = "="
-	timeout_identifier = "timeout"
+	debugEventTypeName   = "Event Type"
+	debugEventActionName = "Event Action"
 
-	comment       = '#'
-	arg_container = '\''
-	arg_delimiter = ','
+	wildcard          = "*"
+	delimiter         = "::"
+	globalDelimiter   = "="
+	timeoutIdentifier = "timeout"
+
+	comment      = '#'
+	argContainer = '\''
+	argDelimiter = ','
 )
+
+type Position struct {
+	row int
+	col int
+}
+
+type parser struct {
+	scanner *bufio.Scanner
+	hints   map[string][]string
+	config  *Config
+	pos     Position
+}
 
 // TODO: fix
 func keys[T any](m map[string]T) []string {
@@ -34,84 +48,89 @@ func keys[T any](m map[string]T) []string {
 	return arr
 }
 
-func parseGlobalSettingLine(config *Config, line string, mid int) error {
+func (p *parser) parseGlobalSettingLine(line string, mid int) error {
 	item := line[:mid]
 	value := line[mid+1:]
 
-	if item != timeout_identifier {
-		return &ConfigError{
-			message: "unknown global setting: '" + item + "'",
-			err:     ErrMalformed,
+	if item != timeoutIdentifier {
+		return &Error{
+			context: "unknown global setting: '" + item + "'",
+			err:     ErrBadValue,
 		}
 	}
 
 	timeoutNb, err := strconv.ParseUint(value, 10, 16)
 	if err != nil {
-		return &ConfigError{
-			message: "invalid timeout value: '" + value + "'",
+		return &Error{
+			context: "invalid timeout value: '" + value + "'",
 			err:     err,
 		}
 	}
 
-	config.timeout = uint(timeoutNb)
+	p.config.timeout = uint(timeoutNb)
 	return nil
 }
 
-func parseHandlerLine(config *Config, hinter map[string][]string, line string) error {
+func (p *parser) parseHandlerLine(line string) error {
 	// parse event type
 	typ_end := strings.Index(line, delimiter)
 	if typ_end == -1 {
-		return &ConfigError{message: "no delimiter found after event type", err: ErrMalformed}
+		return &ParserError{line: line, context: "no delimiter found after event type", err: ErrBadSyntax, pos: p.pos, length: len(line)}
 	}
 	typ := line[:typ_end]
 	if typ == wildcard {
-		return &ConfigError{message: "type can't be wildcare, use wildcare only for actions", err: ErrUnimplemented}
+		return &ParserError{line: line, context: "type can't be wildcard, use wildcard only for actions", err: ErrBadValue, pos: p.pos, length: len(typ)}
 	}
-	possibleActions, ok := hinter[typ]
+	possibleActions, ok := p.hints[typ]
 	if !ok {
-		return &ConfigError{message: fmt.Sprintf("event of type `%v` does not exist on your current docker version, use one of: %v", typ, keys(hinter)), err: ErrUnimplemented}
+		return &ParserError{line: line, context: fmt.Sprintf("invalid type `%v`, use one of: %v", typ, keys(p.hints)), err: ErrBadValue, pos: p.pos, length: len(typ)}
 	}
 
+	p.pos.col = typ_end + len(delimiter)
+
 	// parse event action
-	action_end := strings.Index(line[typ_end+2:], delimiter)
+	action_end := strings.Index(line[typ_end+len(delimiter):], delimiter)
 	if action_end == -1 {
-		return &ConfigError{message: "no delimiter found after event action", err: ErrMalformed}
+		return &ParserError{line: line, context: "no delimiter found after event action", err: ErrBadSyntax, pos: p.pos, length: len(line) - p.pos.col}
 	}
-	action_end = action_end + typ_end + 2
+	action_end = action_end + typ_end + len(delimiter)
 	action := line[typ_end+2 : action_end]
 	if action != wildcard && !slices.Contains(possibleActions, action) {
-		return &ConfigError{message: fmt.Sprintf("action `%v` on type `%v` does not exist on your current docker version, use one of: %v", action, typ, possibleActions), err: ErrUnimplemented}
+		return &ParserError{line: line, context: fmt.Sprintf("invalid action `%v` on type `%v`, use one of: %v", action, typ, possibleActions), err: ErrBadValue, pos: p.pos, length: len(action)}
 	}
+
+	p.pos.col = action_end + len(delimiter)
 
 	// parse cmd timeout
 	timeout_end := strings.Index(line[action_end+2:], delimiter)
 	if timeout_end == -1 {
-		return &ConfigError{message: "no delimiter found after timeout", err: ErrMalformed}
+		return &ParserError{line: line, context: "no delimiter found after timeout", err: ErrBadSyntax, pos: p.pos, length: len(line) - p.pos.col}
 	}
 	var timeoutNb uint64
-	timeout_end = timeout_end + action_end + 2
+	timeout_end = timeout_end + action_end + len(delimiter)
 	timeoutNb = 0
 	timeout := line[action_end+2 : timeout_end]
 	if timeout != "" {
 		var err error
 		timeoutNb, err = strconv.ParseUint(timeout, 10, 16)
 		if err != nil {
-			return err
+			return &ParserError{line: line, context: err.Error(), err: err, pos: p.pos, length: len(timeout)}
 		}
 	}
 
 	// parse cmd
-	j := timeout_end + 2
+	j := timeout_end + len(delimiter)
 	args := []string{}
 	for {
-		if j >= len(line) || line[j] != arg_container {
-			return &ConfigError{message: "no start delimiter found for arg", err: ErrMalformed}
+		p.pos.col = j
+		if j >= len(line) || line[j] != argContainer {
+			return &ParserError{line: line, context: "no start delimiter found for command argument", err: ErrBadSyntax, pos: p.pos, length: len(line) - p.pos.col}
 		}
 		j++
 		arg := ""
 		for {
 			if j >= len(line) {
-				return &ConfigError{message: "no end start delimiter found in arg: `" + arg + "`", err: ErrMalformed}
+				return &ParserError{line: line, context: "no end delimiter found for command argument", err: ErrBadSyntax, pos: p.pos, length: len(line) - p.pos.col}
 			}
 			if line[j] == '\\' && j+1 < len(line) {
 				arg += string(line[j+1])
@@ -123,19 +142,21 @@ func parseHandlerLine(config *Config, hinter map[string][]string, line string) e
 			}
 			arg += string(line[j])
 			j++
+			p.pos.col = j
 		}
 		j++
 		args = append(args, arg)
 		if j == len(line) {
 			break
 		}
-		if line[j] != arg_delimiter {
-			return &ConfigError{message: "expected delimiter after arg: `" + arg + "`", err: ErrMalformed}
+		p.pos.col = j
+		if line[j] != argDelimiter {
+			return &ParserError{line: line, context: "expected delimiter after argument", err: ErrBadSyntax, pos: p.pos, length: 1}
 		}
 		j++
 	}
 
-	config.SetCmd(typ, action, &cmd.Cmd{
+	p.config.SetCmd(typ, action, &cmd.Cmd{
 		Name:    args[0],
 		Args:    args[1:],
 		Timeout: uint(timeoutNb),
@@ -144,59 +165,44 @@ func parseHandlerLine(config *Config, hinter map[string][]string, line string) e
 	return nil
 }
 
-func parseLine(config *Config, hinter map[string][]string, line string) error {
+func (p *parser) parseLine() error {
+	line := p.scanner.Text()
 	if len(line) == 0 || line[0] == comment {
 		return nil
 	}
 
-	i := strings.Index(line, global_delimiter)
+	i := strings.Index(line, globalDelimiter)
 	if i != -1 {
-		return parseGlobalSettingLine(config, line, i)
+		return p.parseGlobalSettingLine(line, i)
 	}
-	return parseHandlerLine(config, hinter, line)
+	return p.parseHandlerLine(line)
 }
 
-func ParseConfig(scanner *bufio.Scanner, version string) (*Config, error) {
-	if versions.GreaterThanOrEqualTo(MinAPIVersion, version) {
-		return nil, &ConfigError{message: "minimal docker API version supported is " + MinAPIVersion + " current is " + version}
-	}
-
-	hinter, ok := configVersion[version]
-	if !ok {
-		return nil, &ConfigError{message: "failed to found commands hinter for Docker API version " + version + ", this is a bug, please report."}
-	}
-
+func ParseConfig(scanner *bufio.Scanner, hints map[string][]string) (*Config, error) {
 	config := &Config{
-		map_:    make(map[string]map[string]*cmd.Cmd),
-		version: version,
+		map_: make(map[string]map[string]*cmd.Cmd),
 	}
 
-	errHappened := false
-	for scanner.Scan() {
-		err := parseLine(config, hinter, scanner.Text())
-		if err != nil {
-			fmt.Println("Error found in line [", scanner.Text(), "]:")
-			fmt.Println("---- ", err.Error())
-			errHappened = true
-		}
+	parser := &parser{
+		pos:     Position{row: 0, col: 0},
+		config:  config,
+		scanner: scanner,
+		hints:   hints,
 	}
+
+	var err error = nil
+	for parser.scanner.Scan() {
+		err = errors.Join(err, parser.parseLine())
+		parser.pos.row += 1
+	}
+
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, errors.Join(err, &Error{context: "failed to read file buffer", err: err})
 	}
-	if errHappened {
-		return nil, ErrMalformed
-	}
-	return config, nil
-}
 
-func ParseConfigFile(filepath string, version string) (*Config, error) {
-	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-
-	return ParseConfig(scanner, version)
+	return config, nil
 }

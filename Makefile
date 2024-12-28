@@ -15,6 +15,7 @@ clean:
 
 gen:
 	go run ./cmd/gen/configVersion.go
+	go fmt ./internal/config/version.go
 
 vet:
 	go vet ./...

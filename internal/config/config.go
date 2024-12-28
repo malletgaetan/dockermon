@@ -1,18 +1,33 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/versions"
 	"github.com/malletgaetan/dockermon/internal/cmd"
 )
 
 const (
 	MinAPIVersion = "1.41" // support for debian stable branch, could go lower if needed
+	errorFmt      = "received `%s` `%s`, which shouldn't be possible, this is a bug please report."
 )
 
 type Config struct {
-	timeout uint
-	version string
+	timeout uint `default:"10"`
 	map_    map[string]map[string]*cmd.Cmd
+}
+
+func Setup(version string) (map[string][]string, error) {
+	if versions.GreaterThanOrEqualTo(MinAPIVersion, version) {
+		return nil, &Error{context: "minimal docker API is " + MinAPIVersion + " current is " + version, err: ErrUnsupportedVersion}
+	}
+
+	hinter, ok := configVersion[version]
+	if !ok {
+		return nil, &Error{context: "failed to retrieve Docker API hints for version " + version, err: ErrUnsupportedVersion}
+	}
+	return hinter, nil
 }
 
 func (c *Config) Filters() filters.Args {
@@ -31,6 +46,7 @@ func (c *Config) Filters() filters.Args {
 	return filterArgs
 }
 
+// TODO
 func (c *Config) Dump() {
 	return
 }
@@ -42,10 +58,7 @@ func (c *Config) SetCmd(typ string, action string, comd *cmd.Cmd) {
 	c.map_[typ][action] = comd
 }
 
-func (c *Config) GetCmd(typ string, action string) (*cmd.Cmd, error) {
-	configError := &ConfigError{
-		err: ErrUnimplemented,
-	}
+func (c *Config) GetCmd(typ string, action string) *cmd.Cmd {
 	var actions map[string]*cmd.Cmd
 	var cmd *cmd.Cmd
 	actions, ok := c.map_[typ]
@@ -53,8 +66,7 @@ func (c *Config) GetCmd(typ string, action string) (*cmd.Cmd, error) {
 		actions, ok = c.map_[wildcard]
 		if !ok {
 			c.Dump()
-			configError.message = "typ '" + typ + "' not set, this is a bug please report."
-			return nil, configError
+			panic(fmt.Sprintf(errorFmt, debugEventTypeName, typ))
 		}
 	}
 	cmd, ok = actions[action]
@@ -62,9 +74,8 @@ func (c *Config) GetCmd(typ string, action string) (*cmd.Cmd, error) {
 		cmd, ok = actions[wildcard]
 		if !ok {
 			c.Dump()
-			configError.message = "action '" + action + "' not set, this is a bug please report."
-			return nil, configError
+			panic(fmt.Sprintf(errorFmt, debugEventActionName, action))
 		}
 	}
-	return cmd, nil
+	return cmd
 }

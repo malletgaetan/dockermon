@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -23,7 +24,7 @@ var (
 )
 
 func main() {
-	runtime.GOMAXPROCS(1) // TODO: is it really a good idea -> https://pkg.go.dev/runtime
+	runtime.GOMAXPROCS(1) // make it single core
 	var wg sync.WaitGroup
 	var loggerConfig logger.Config
 
@@ -46,9 +47,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	conf, err := config.ParseConfigFile(*configFilePath, cli.ClientVersion())
+	hints, err := config.Setup(cli.ClientVersion())
 	if err != nil {
-		fmt.Println("Error: failed to parse configuration file: ", err)
+		fmt.Println("Error: ", err)
+		os.Exit(1)
+	}
+
+	file, err := os.Open(*configFilePath)
+	if err != nil {
+		fmt.Println("Error: failed to open config file: ", err)
+		os.Exit(1)
+	}
+
+	scanner := bufio.NewScanner(file)
+
+	conf, err := config.ParseConfig(scanner, hints)
+	file.Close()
+	if err != nil {
+		fmt.Println("Error: failed to parse configuration")
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
@@ -67,11 +84,7 @@ func main() {
 				goto out
 			}
 		case msg := <-msgs:
-			cmd, err := conf.GetCmd(string(msg.Type), string(msg.Action))
-			if err != nil {
-				logger.Log.Error("no handler found", "type", string(msg.Type), "action", string(msg.Action))
-				continue
-			}
+			cmd := conf.GetCmd(string(msg.Type), string(msg.Action))
 			logger.Log.Info("handling event", "type", string(msg.Type), "action", string(msg.Action))
 			wg.Add(1)
 			go cmd.Execute(&wg, msg)
