@@ -21,9 +21,9 @@ Build from source:
 make
 ```
 
-Or download pre-built binaries (coming soon):
+Or install using pre-built binaries:
 ```bash
-// TODO
+curl -fsSL https://raw.githubusercontent.com/malletgaetan/dockermon/main/install.sh | sudo bash
 ```
 
 ### Basic Usage

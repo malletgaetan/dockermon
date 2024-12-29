@@ -10,7 +10,7 @@
 - [x] Resilience on events listening fail
 - [x] Add more tests
 - [x] CI/CD Pipeline, no push on main (tests, fmt and static analysis)
-- [ ] One file installer
+- [x] One line installer
 
 - [ ] Event Type wildcard
 - [ ] Windows compatibility

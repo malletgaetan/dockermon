@@ -41,7 +41,6 @@ type parser struct {
 	pos     Position
 }
 
-// TODO: fix
 func keys[T any](m map[string]T) []string {
 	arr := make([]string, len(m))
 	i := 0
