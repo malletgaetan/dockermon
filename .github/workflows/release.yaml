@@ -1,25 +1,24 @@
 name: Release Binaries
-
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version-file: 'go.mod'
-
       - name: Build for Linux (amd64)
         run: |
           GOOS=linux GOARCH=amd64 go build -o dockermon-linux-amd64
-
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
