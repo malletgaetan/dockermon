@@ -9,6 +9,7 @@
 - [x] Build docker event filter
 - [x] Resilience on events listening fail
 - [ ] Add more tests
+- [ ] CI/CD Pipeline, no push on main (tests, fmt and static analysis)
 - [ ] One file installer
 - [ ] Event Type wildcard
 - [ ] Windows compatibility

@@ -60,8 +60,8 @@ func (c *Config) Dump() {
 			var t uint = 0
 			if cmd.Timeout != 0 {
 				t = cmd.Timeout
-			} else if cmd.Timeout != 0 {
-				t = cmd.Timeout
+			} else if c.timeout != 0 {
+				t = c.timeout
 			}
 			if t != 0 {
 				timeout += strconv.FormatUint(uint64(t), 10)
@@ -69,7 +69,6 @@ func (c *Config) Dump() {
 			fmt.Printf("%s%s%s%s%s%s%s\n", eventType, delimiter, action, delimiter, timeout, delimiter, strings.Join(cmd.Args, ","))
 		}
 	}
-	return
 }
 
 func (c *Config) SetCmd(typ string, action string, comd *cmd.Cmd) {
