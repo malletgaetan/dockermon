@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"github.com/malletgaetan/dockermon/internal/config"
 	"github.com/malletgaetan/dockermon/internal/logger"
@@ -56,7 +56,7 @@ func handleEvents(client *client.Client, conf *config.Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	msgs, errs := client.Events(ctx, types.EventsOptions{
+	msgs, errs := client.Events(ctx, events.ListOptions{
 		Filters: conf.Filters(),
 	})
 

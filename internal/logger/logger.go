@@ -17,8 +17,7 @@ func Initialize(cfg Config) {
 		Level: cfg.Level,
 	}
 
-	var handler slog.Handler
-	handler = slog.NewTextHandler(os.Stdout, opts)
+	handler := slog.NewTextHandler(os.Stdout, opts)
 
 	Log = slog.New(handler)
 	slog.SetDefault(Log)

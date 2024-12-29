@@ -23,9 +23,12 @@ vet:
 test:
 	go test ./...
 
+lint:
+	golangci-lint run
+
 fuzz:
 	go test -fuzz=FuzzParseConfig -fuzztime=5m ./internal/config
 
 re: clean all
 
-.PHONY: all clean re fmt
+.PHONY: all clean re fmt lint

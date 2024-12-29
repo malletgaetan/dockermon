@@ -20,7 +20,7 @@ func FuzzParseConfig(f *testing.F) {
 	f.Add(corpusBytes)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		hints, _ := configVersion["1.47"]
+		hints := configVersion["1.47"]
 		scanner := bufio.NewScanner(bytes.NewReader(data))
 		config, err := ParseConfig(scanner, hints)
 
