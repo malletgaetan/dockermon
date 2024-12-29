@@ -23,7 +23,7 @@ make
 
 Or install using pre-built binaries:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/malletgaetan/dockermon/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/malletgaetan/dockermon/refs/heads/main/installer.sh | sudo bash
 ```
 
 ### Basic Usage
