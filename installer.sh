@@ -22,7 +22,7 @@ detect_platform() {
     esac
 
     case "$OS" in
-        linux|darwin)
+        linux)
             ;;
         *)
             echo "Unsupported operating system: $OS"
